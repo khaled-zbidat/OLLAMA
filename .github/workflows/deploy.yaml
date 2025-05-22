@@ -32,12 +32,12 @@ jobs:
         sudo systemctl start ollama
         
         # Pull or update models
-        ollama pull gemma3:1b
+        ollama pull llama3.2
         
         # Add any model-specific customizations
         # For example, create a kids-story-teller model with special system prompt
         cat > kids_story_model.txt << 'MODEL'
-        FROM gemma3:1b
+        FROM llama3.2
 
         # Set a system message to make the model kid-friendly
         SYSTEM """
