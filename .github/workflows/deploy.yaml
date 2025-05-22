@@ -1,0 +1,72 @@
+name: Deploy Ollama Service
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+    
+    - name: Deploy to EC2
+      run: |
+        echo "Deploying to Ollama service EC2 instance"
+        
+        # Create deployment script
+        cat > deploy.sh << 'EOL'
+        #!/bin/bash
+        
+        # Update Ollama if needed
+        sudo systemctl stop ollama
+        curl -fsSL https://ollama.com/install.sh | sh
+        sudo systemctl start ollama
+        
+        # Pull or update models
+        ollama pull gemma3:1b
+        
+        # Add any model-specific customizations
+        # For example, create a kids-story-teller model with special system prompt
+        cat > kids_story_model.txt << 'MODEL'
+        FROM gemma3:1b
+
+        # Set a system message to make the model kid-friendly
+        SYSTEM """
+        You are a creative and educational storyteller for children. 
+        Create engaging, age-appropriate stories that are:
+        - Positive and uplifting
+        - Educational and promote good values
+        - Free from scary elements, violence, or adult themes
+        - Suitable for children ages 3-10
+        - Typically 3-5 paragraphs long
+        - Simple vocabulary appropriate for young children
+        
+        When asked for a story, always create an original story tailored to the child's interests.
+        Include a title for each story.
+        """
+        MODEL
+        
+        # Create the custom model
+        ollama create kids-storyteller -f kids_story_model.txt
+        
+        echo "Ollama service updated successfully!"
+        EOL
+        
+        # Make script executable
+        chmod +x deploy.sh
+        
+        # Copy to EC2 instance
+        scp -i ${{ secrets.EC2_SSH_KEY }} -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
+        
+        # Execute script on EC2
+        ssh -i ${{ secrets.EC2_SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"
