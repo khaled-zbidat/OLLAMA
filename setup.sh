@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to set up Ollama service on EC2
-
+#DEV
 # Update system packages
 sudo apt-get update
 sudo apt-get upgrade -y
