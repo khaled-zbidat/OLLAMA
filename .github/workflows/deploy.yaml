@@ -12,6 +12,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        
     - name: Deploy to EC2
       run: |
         echo "Deploying to Ollama service EC2 instance"
@@ -59,7 +65,7 @@ jobs:
         chmod +x deploy.sh
         
         # Copy to EC2 instance
-        scp -i ${{ secrets.EC2_SSH_KEY }} -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
+        scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
         
         # Execute script on EC2
-        ssh -i ${{ secrets.EC2_SSH_KEY }} -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"
+        ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"
