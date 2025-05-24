@@ -8,40 +8,49 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Setup SSH key
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        
+
     - name: Deploy to EC2
       run: |
         echo "Deploying to Ollama service EC2 instance"
-        
+
         # Create deployment script
         cat > deploy.sh << 'EOL'
         #!/bin/bash
-        
-        # Update Ollama if needed
+
+        echo "🔧 Starting Ollama setup..."
+
+        # Stop Ollama if already running
         sudo systemctl stop ollama
+
+        # Install or update Ollama
         curl -fsSL https://ollama.com/install.sh | sh
-        sudo systemctl start ollama
-        
-        # Pull or update models
+
+        # Ensure Ollama listens on all interfaces
+        sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/env OLLAMA_HOST=0.0.0.0 /usr/local/bin/ollama serve|' /etc/systemd/system/ollama.service
+        sudo systemctl daemon-reexec
+        sudo systemctl daemon-reload
+
+        # Enable and restart Ollama service
+        sudo systemctl enable ollama
+        sudo systemctl restart ollama
+
+        # Pull or update model
         ollama pull llama3.2
-        
-        # Add any model-specific customizations
-        # For example, create a kids-story-teller model with special system prompt
+
+        # Create kid-friendly custom model
         cat > kids_story_model.txt << 'MODEL'
         FROM llama3.2
-
-        # Set a system message to make the model kid-friendly
         SYSTEM """
-        You are a creative and educational storyteller for children. 
+        You are a creative and educational storyteller for children.
         Create engaging, age-appropriate stories that are:
         - Positive and uplifting
         - Educational and promote good values
@@ -49,23 +58,22 @@ jobs:
         - Suitable for children ages 3-10
         - Typically 3-5 paragraphs long
         - Simple vocabulary appropriate for young children
-        
+
         When asked for a story, always create an original story tailored to the child's interests.
         Include a title for each story.
         """
         MODEL
-        
-        # Create the custom model
+
         ollama create kids-storyteller -f kids_story_model.txt
-        
-        echo "Ollama service updated successfully!"
+
+        echo "✅ Ollama service is ready and listening on 0.0.0.0:11434"
         EOL
-        
-        # Make script executable
+
+        # Make the script executable
         chmod +x deploy.sh
-        
-        # Copy to EC2 instance
+
+        # Copy script to EC2
         scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
-        
-        # Execute script on EC2
+
+        # Run script remotely
         ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"

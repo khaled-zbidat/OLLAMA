@@ -19,6 +19,13 @@ ollama pull llama3.2
 sudo systemctl enable ollama
 sudo systemctl start ollama
 
+# Update systemd service to listen on all interfaces
+sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/env OLLAMA_HOST=0.0.0.0 /usr/local/bin/ollama serve|' /etc/systemd/system/ollama.service
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+
+
 # Configure security to allow access from web app
 # Note: In production, use more restrictive security settings
 sudo ufw allow 11434/tcp
