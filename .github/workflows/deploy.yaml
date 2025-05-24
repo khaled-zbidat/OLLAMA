@@ -10,7 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
     - name: Setup SSH key
       run: |
@@ -22,34 +23,31 @@ jobs:
       run: |
         echo "Deploying to Ollama service EC2 instance"
 
-        # Create deployment script
+        # Write the deployment script
         cat > deploy.sh << 'EOL'
         #!/bin/bash
 
         echo "🔧 Starting Ollama setup..."
 
-        # Update system packages
+        # Update packages
         sudo apt-get update && sudo apt-get upgrade -y
 
-        # Stop Ollama if running
-        sudo systemctl stop ollama || true
-
-        # Install or update Ollama
+        # Install Ollama
         curl -fsSL https://ollama.com/install.sh | sh
 
-        # Configure Ollama to listen on all interfaces
-        sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/env OLLAMA_HOST=0.0.0.0 /usr/local/bin/ollama serve|' /etc/systemd/system/ollama.service
+        # Configure Ollama systemd to listen on all interfaces
+        sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/env OLLAMA_HOST=0.0.0.0 /usr/local/bin/ollama serve|' /etc/systemd/system/ollama.service || true
         sudo systemctl daemon-reexec
         sudo systemctl daemon-reload
 
-        # Enable and restart Ollama
+        # Restart Ollama service
         sudo systemctl enable ollama
         sudo systemctl restart ollama
 
-        # Pull model
+        # Pull base model
         ollama pull llama3.2
 
-        # Create custom model
+        # Create child-friendly model
         cat > kids_story_model.txt << 'MODEL'
         FROM llama3.2
         SYSTEM """
@@ -69,15 +67,22 @@ jobs:
 
         ollama create kids-storyteller -f kids_story_model.txt
 
-        # Open port for external access
+        # Configure firewall safely (ensure SSH isn't blocked)
+        # Configure firewall (allow SSH + Ollama + optional ports)
+        sudo ufw allow OpenSSH
         sudo ufw allow 11434/tcp
+        sudo ufw allow 80/tcp        # Optional: web app
+        sudo ufw allow 443/tcp       # Optional: HTTPS
+        sudo ufw allow 5000/tcp      # Optional: Flask dev app, etc.
         sudo ufw --force enable
 
-        echo "✅ Ollama service is ready and listening on 0.0.0.0:11434"
+
+        echo "✅ Deployment complete: Ollama running on 0.0.0.0:11434"
         EOL
 
+        # Make script executable
         chmod +x deploy.sh
 
-        # Copy and run the script
+        # Copy and run the script remotely
         scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
         ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"
