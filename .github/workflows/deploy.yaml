@@ -46,7 +46,7 @@ jobs:
         # Pull or update model
         ollama pull llama3.2
 
-        # Create kid-friendly custom model
+        # Create kid-friendly custom model a
         cat > kids_story_model.txt << 'MODEL'
         FROM llama3.2
         SYSTEM """
