@@ -28,25 +28,28 @@ jobs:
 
         echo "🔧 Starting Ollama setup..."
 
-        # Stop Ollama if already running
-        sudo systemctl stop ollama
+        # Update system packages
+        sudo apt-get update && sudo apt-get upgrade -y
+
+        # Stop Ollama if running
+        sudo systemctl stop ollama || true
 
         # Install or update Ollama
         curl -fsSL https://ollama.com/install.sh | sh
 
-        # Ensure Ollama listens on all interfaces
+        # Configure Ollama to listen on all interfaces
         sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/env OLLAMA_HOST=0.0.0.0 /usr/local/bin/ollama serve|' /etc/systemd/system/ollama.service
         sudo systemctl daemon-reexec
         sudo systemctl daemon-reload
 
-        # Enable and restart Ollama service
+        # Enable and restart Ollama
         sudo systemctl enable ollama
         sudo systemctl restart ollama
 
-        # Pull or update model
+        # Pull model
         ollama pull llama3.2
 
-        # Create kid-friendly custom model a
+        # Create custom model
         cat > kids_story_model.txt << 'MODEL'
         FROM llama3.2
         SYSTEM """
@@ -66,14 +69,15 @@ jobs:
 
         ollama create kids-storyteller -f kids_story_model.txt
 
+        # Open port for external access
+        sudo ufw allow 11434/tcp
+        sudo ufw --force enable
+
         echo "✅ Ollama service is ready and listening on 0.0.0.0:11434"
         EOL
 
-        # Make the script executable
         chmod +x deploy.sh
 
-        # Copy script to EC2
+        # Copy and run the script
         scp -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no deploy.sh ubuntu@${{ secrets.OLLAMA_EC2_IP }}:~/deploy.sh
-
-        # Run script remotely
         ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ubuntu@${{ secrets.OLLAMA_EC2_IP }} "bash ~/deploy.sh"
