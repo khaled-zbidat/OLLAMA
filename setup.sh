@@ -13,7 +13,7 @@ systemctl status ollama
 
 # Pull a suitable model for children's stories
 # Gemma 3:1b is a good balance of capability and resource usage
-ollama pull gemma3:1b
+ollama pull llama3.2
 
 # Ensure Ollama service is running and enabled on startup
 sudo systemctl enable ollama
